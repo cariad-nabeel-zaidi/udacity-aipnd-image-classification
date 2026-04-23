@@ -33,7 +33,7 @@ device = torch.device("cuda" if args.gpu and torch.cuda.is_available() else "cpu
 # 3. LOAD CHECKPOINT
 # -------------------------------
 def load_checkpoint(filepath):
-    checkpoint = torch.load(filepath, map_location=device, weights_only=True)
+    checkpoint = torch.load(filepath, map_location=device)
 
     model = vgg16(weights=VGG16_Weights.DEFAULT)
 
