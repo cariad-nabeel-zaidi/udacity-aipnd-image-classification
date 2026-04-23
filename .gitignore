@@ -100,4 +100,8 @@ ENV/
 # mypy
 .mypy_cache/
 
+# PyTorch model checkpoint
+checkpoint.pth
+
+
 .github/**
