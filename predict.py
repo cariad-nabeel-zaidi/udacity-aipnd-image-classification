@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 import torch.nn.functional as F
 from torchvision import models
+from torchvision.models import vgg16, VGG16_Weights
 
 # -------------------------------
 # 1. ARGUMENTS
@@ -24,7 +25,7 @@ parser.add_argument('--gpu', action='store_true')
 args = parser.parse_args()
 
 # -------------------------------
-# 2. DEVICE
+# 2. DEVICE SETUP
 # -------------------------------
 device = torch.device("cuda" if args.gpu and torch.cuda.is_available() else "cpu")
 
@@ -32,11 +33,13 @@ device = torch.device("cuda" if args.gpu and torch.cuda.is_available() else "cpu
 # 3. LOAD CHECKPOINT
 # -------------------------------
 def load_checkpoint(filepath):
-    checkpoint = torch.load(filepath)
+    checkpoint = torch.load(filepath, map_location=device, weights_only=True)
 
-    model = models.vgg16(pretrained=True)
+    model = vgg16(weights=VGG16_Weights.DEFAULT)
+
     model.classifier = checkpoint['classifier']
     model.load_state_dict(checkpoint['state_dict'])
+
     model.class_to_idx = checkpoint['class_to_idx']
 
     return model
@@ -49,10 +52,18 @@ model.eval()
 # 4. PROCESS IMAGE
 # -------------------------------
 def process_image(image_path):
+
     image = Image.open(image_path)
 
+    # resize shortest side to 256
     image = image.resize((256, 256))
-    image = image.crop((16, 16, 240, 240))
+
+    # center crop 224x224
+    left = (256 - 224) / 2
+    top = (256 - 224) / 2
+    right = left + 224
+    bottom = top + 224
+    image = image.crop((left, top, right, bottom))
 
     np_image = np.array(image) / 255.0
 
@@ -60,6 +71,8 @@ def process_image(image_path):
     std = np.array([0.229, 0.224, 0.225])
 
     np_image = (np_image - mean) / std
+
+    # change HWC → CHW
     np_image = np_image.transpose((2, 0, 1))
 
     return np_image
@@ -88,8 +101,9 @@ def predict(image_path, model, topk=5):
     return probs, classes
 
 # -------------------------------
-# 6. LOAD CATEGORY NAMES (OPTIONAL)
+# 6. LOAD CATEGORY NAMES
 # -------------------------------
+cat_to_name = None
 if args.category_names:
     with open(args.category_names, 'r') as f:
         cat_to_name = json.load(f)
@@ -99,14 +113,14 @@ if args.category_names:
 # -------------------------------
 probs, classes = predict(args.image_path, model, args.top_k)
 
-# Convert to flower names if mapping exists
-if args.category_names:
+# convert to flower names if available
+if cat_to_name:
     names = [cat_to_name[c] for c in classes]
 else:
     names = classes
 
 # -------------------------------
-# 8. PRINT OUTPUT
+# 8. OUTPUT
 # -------------------------------
 print("\nTop Predictions:")
 for i in range(len(names)):
